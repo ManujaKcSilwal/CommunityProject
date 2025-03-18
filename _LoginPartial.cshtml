@@ -1,0 +1,16 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using cmty_prjt.Areas.Identity.Data
+
+@inject SignInManager<cmty_prjtUser> SignInManager
+@inject UserManager<cmty_prjtUser> UserManager
+
+@if (SignInManager.IsSignedIn(User))
+{
+    <ul class="navbar-nav">
+        <li class="nav-item">
+            <form id="logoutForm" class="form-inline" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })">
+                <button id="logout" type="submit" class="nav-link btn btn-link text-dark border-0">Logout</button>
+            </form>
+        </li>
+    </ul>
+}

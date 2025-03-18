@@ -1,0 +1,295 @@
+@model IEnumerable<cmty_prjt.Models.Event>
+
+@{
+    ViewData["Title"] = "Create Event";
+}
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Events Management</h1>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-calendar me-1"></i>
+                Events List
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="eventsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Date</th>
+                            <th>Location</th>
+                            <th>Created By</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>@item.Title</td>
+                                <td>@item.EventDate.ToString("MMM dd, yyyy - h:mm tt")</td>
+                                <td>@item.Location</td>
+                                <td>@item.CreatedById</td>
+                                <td>
+                                    @if (item.Status == "Active")
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else if (item.Status == "Draft")
+                                    {
+                                        <span class="badge bg-warning text-dark">Draft</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">@item.Status</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-info" onclick="editEvent(@item.Id)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete(@item.Id, '@item.Title')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Modal for Create/Edit -->
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalLabel">Add/Edit Event</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="eventForm">
+                    <input type="hidden" id="eventId" name="Id" value="0" />
+                    
+                    <div class="mb-3">
+                        <label for="eventTitle" class="form-label">Event Name</label>
+                        <input type="text" class="form-control" id="eventTitle" name="Title" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="eventDate" class="form-label">Start Date & Time</label>
+                        <input type="datetime-local" class="form-control" id="eventDate" name="EventDate" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="eventEndDate" class="form-label">End Date & Time</label>
+                        <input type="datetime-local" class="form-control" id="eventEndDate" name="EndDate" required>
+                    </div>
+                    
+                    <!-- Hidden fields to store other required data -->
+                    <input type="hidden" id="eventDescription" name="Description" value="Event description">
+                    <input type="hidden" id="eventLocation" name="Location" value="Event location">
+                    <input type="hidden" id="eventStatus" name="Status" value="Active">
+                </form>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-primary w-100" id="saveEventBtn">Save Event</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the event: <span id="deleteEventName"></span>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        #eventsTable th, #eventsTable td {
+            vertical-align: middle;
+        }
+        /* Blue Save Event button style */
+        #saveEventBtn {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        let deleteEventId = 0;
+        
+        $(document).ready(function() {
+            // Initialize DataTable for better functionality
+            $('#eventsTable').DataTable({
+                responsive: true,
+                order: [[1, 'desc']] // Sort by date descending
+            });
+
+            // Set default date and time for new events
+            resetEventForm();
+            
+            // Handle form submission
+            $('#saveEventBtn').click(function() {
+                if(!validateForm()) return;
+                
+                const formData = new FormData(document.getElementById('eventForm'));
+                const eventId = $('#eventId').val();
+                
+                // Determine if this is a create or update operation
+                const url = eventId == 0 ? '/Calendar/AddEvent' : '/Calendar/UpdateEvent';
+                
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    headers: {
+                        'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                    },
+                    success: function(response) {
+                        if(response.success) {
+                            $('#eventModal').modal('hide');
+                            // Reload page to see updated events list
+                            location.reload();
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('An error occurred. Please try again.');
+                        console.error(xhr);
+                    }
+                });
+            });
+            
+            // Handle delete confirmation
+            $('#confirmDeleteBtn').click(function() {
+                if(deleteEventId > 0) {
+                    $.ajax({
+                        url: '/Calendar/DeleteEvent/' + deleteEventId,
+                        type: 'POST',
+                        headers: {
+                            'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                        },
+                        success: function(response) {
+                            if(response.success) {
+                                $('#deleteModal').modal('hide');
+                                // Reload page to see updated events list
+                                location.reload();
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function(xhr) {
+                            alert('An error occurred. Please try again.');
+                            console.error(xhr);
+                        }
+                    });
+                }
+            });
+        });
+        
+        // Reset form for creating a new event
+        function resetEventForm() {
+            $('#eventId').val(0);
+            $('#eventForm')[0].reset();
+            $('#eventModalLabel').text('Add/Edit Event');
+            
+            // Set default date and time (current time + 1 hour, rounded to nearest hour)
+            const now = new Date();
+            now.setHours(now.getHours() + 1);
+            now.setMinutes(0);
+            now.setSeconds(0);
+            
+            const formattedDateTime = now.toISOString().slice(0, 16);
+            $('#eventDate').val(formattedDateTime);
+            
+            // Set end date to 1 hour after start
+            const endTime = new Date(now);
+            endTime.setHours(endTime.getHours() + 1);
+            $('#eventEndDate').val(endTime.toISOString().slice(0, 16));
+        }
+        
+        // Load event data for editing
+        function editEvent(id) {
+            // Find the event in the table and populate the form
+            $.ajax({
+                url: '/Calendar/GetEvents',
+                type: 'GET',
+                dataType: 'json',
+                success: function(events) {
+                    const event = events.find(e => e.id === id);
+                    if(event) {
+                        $('#eventId').val(event.id);
+                        $('#eventTitle').val(event.title);
+                        
+                        // Format date for datetime-local input
+                        const startDate = new Date(event.start);
+                        const formattedStartDate = startDate.toISOString().slice(0, 16);
+                        $('#eventDate').val(formattedStartDate);
+                        
+                        // Set end date (default to 1 hour after start if not available)
+                        const endDate = new Date(event.end || startDate.getTime() + 3600000);
+                        const formattedEndDate = endDate.toISOString().slice(0, 16);
+                        $('#eventEndDate').val(formattedEndDate);
+                        
+                        // Set hidden fields
+                        $('#eventDescription').val(event.description || 'Event description');
+                        $('#eventLocation').val(event.location || 'Event location');
+                        $('#eventStatus').val(event.status || 'Active');
+                        
+                        $('#eventModalLabel').text('Add/Edit Event');
+                        $('#eventModal').modal('show');
+                    }
+                },
+                error: function(xhr) {
+                    alert('Error loading event data. Please try again.');
+                    console.error(xhr);
+                }
+            });
+        }
+        
+        // Confirm delete event
+        function confirmDelete(id, title) {
+            deleteEventId = id;
+            $('#deleteEventName').text(title);
+            $('#deleteModal').modal('show');
+        }
+        
+        // Form validation
+        function validateForm() {
+            const form = document.getElementById('eventForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return false;
+            }
+            return true;
+        }
+    </script>
+} 
